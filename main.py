@@ -36,7 +36,7 @@ import re
 
 from matplotlib import font_manager, rc
 plt.rc('font', family='NanumGothic')
-print(plt.rcParams['font.family'])
+# print(plt.rcParams['font.family'])
 
 # Set the max_columns option to None
 pd.set_option('display.max_columns', None)
@@ -72,6 +72,7 @@ shapefile = gpd.read_file(file_path)
 columns_to_drop = ['CRE_DT', 'UPD_DT', 'BASE_DT']
 shapefile_subset = shapefile.drop(columns_to_drop, axis=1)
 subsetElementary = shapefile_subset[shapefile_subset['EDU_UP_NM'] == "서울특별시교육청"]
+# print(subsetElementary.shape)
 
 # read middle school district shp file
 file_name = "data/middleSchoolDistrict/중학교학교군.shp"
@@ -81,6 +82,7 @@ shapefileMiddle = gpd.read_file(file_path)
 columns_to_drop = ['CRE_DT', 'UPD_DT', 'BASE_DT']
 shapefileMiddle_subset = shapefileMiddle.drop(columns_to_drop, axis=1)
 subsetMiddle = shapefileMiddle_subset[shapefileMiddle_subset['EDU_UP_NM'] == "서울특별시교육청"]
+# print(len(subsetMiddle))
 
 # read high school district shp file
 file_name = "data/highSchoolDistrict/고등학교학교군.shp"
@@ -91,7 +93,168 @@ columns_to_drop = ['CRE_DT', 'UPD_DT', 'BASE_DT']
 shapefileHigh_subset = shapefileHigh.drop(columns_to_drop, axis=1)
 subsetHigh = shapefileHigh_subset[shapefileHigh_subset['EDU_UP_NM'] == "서울특별시교육청"]
 
+# columns = subsetMiddle.columns
+# for col in columns:
+#     print(col)
+# print(subsetMiddle['HAKGUDO_NM'])
 
+'''
+### test: find valid elementary school polygons in each polygon of Middle school distrcits
+# use "강남서초4학교군" for test
+subsetMiddleGangnam4 = subsetMiddle[subsetMiddle['HAKGUDO_NM'] == "중부4학교군"]
+
+# Calculate the area of each polygon in subsetElementary
+subsetElementary['area'] = subsetElementary.geometry.apply(lambda x: x.area)
+# print(subsetElementary['area'])
+intersection_result = gpd.overlay(subsetMiddleGangnam4, subsetElementary, how='intersection')
+
+# Calculate the area of each intersected polygon
+intersection_result['areaIntersected'] = intersection_result.geometry.area
+# print(intersection_result['areaIntersected'])
+
+# print(intersection_result['HAKGUDO_NM_2'])
+# print(subsetElementary['HAKGUDO_NM'])
+print(intersection_result.head())
+print(subsetElementary.head())
+
+# Merge the DataFrames based on the specified key and add the 'area' column
+merged_result = pd.merge(intersection_result, subsetElementary[['HAKGUDO_NM']],
+                         left_on='HAKGUDO_NM_2', right_on='HAKGUDO_NM', how='left')
+
+merged_result['intersectedAreaShare'] = merged_result['areaIntersected'] / merged_result['area'] * 100
+
+# Print the merged result
+print(merged_result)
+
+# Plotting subsetMiddleGangnam4
+ax = subsetMiddleGangnam4.plot(color='blue', alpha=0.5)
+
+# Plotting subsetElementary
+subsetElementary.plot(ax=ax, color='red', alpha=0.5)
+
+plt.show()
+'''
+
+##################################################
+# add area info in each shp file
+subsetElementary['geometry'] = subsetElementary.geometry.buffer(0)
+subsetMiddle['geometry'] = subsetMiddle.geometry.buffer(0)
+subsetHigh['geometry'] = subsetHigh.geometry.buffer(0)
+
+subsetElementary['ElementaryDistrictArea'] = subsetElementary.geometry.apply(lambda x: x.area)
+subsetMiddle['MiddleDistrictArea'] = subsetMiddle.geometry.apply(lambda x: x.area)
+# subsetHigh['HighDistrictArea'] = subsetHigh.geometry.apply(lambda x: x.area)
+
+
+##################################################
+# count number of Elementary school districts in Middle school districts
+middleHakgudo = subsetMiddle['HAKGUDO_NM'].unique()
+
+dictMiddleElementaryHakgudoCounts = dict()
+for Hakgudo in middleHakgudo:
+    # get subset of middle school hakgudo one by one
+    tempDF = subsetMiddle[subsetMiddle['HAKGUDO_NM'] == Hakgudo]
+    # intersect tempDF with subsetElementary to find polygons over tempDF
+    tempIntersection = gpd.overlay(tempDF, subsetElementary, how='intersection')
+    # get intersected polygons' area
+    tempIntersection['areaIntersected'] = tempIntersection.geometry.area
+    # get intersected polygons' area share
+    merged_result = pd.merge(tempIntersection, subsetElementary[['HAKGUDO_NM']],
+                             left_on='HAKGUDO_NM_2', right_on='HAKGUDO_NM', how='left')
+    merged_result['intersectedAreaShare'] = merged_result['areaIntersected'] / merged_result['ElementaryDistrictArea'] * 100
+    # # Filter rows where intersectedAreaShare > 95
+    merged_result_filtered = merged_result[merged_result['intersectedAreaShare'] > 5]
+    dictMiddleElementaryHakgudoCounts[Hakgudo] = len(merged_result_filtered)
+
+countMiddleElementaryDF = pd.DataFrame(list(dictMiddleElementaryHakgudoCounts.items()), columns=['HAKGUDO_NM', 'ElementarySchoolDistrictsCount'])
+# print(countMiddleElementaryDF)
+
+# Calculate the sum of values
+# Display the sum: this could be different from the total number of elementary school districts because of shared school districts
+sum_values = countMiddleElementaryDF['ElementarySchoolDistrictsCount'].sum()
+print("Sum of values:", sum_values)
+print(len(subsetElementary))
+
+subsetMiddle = pd.merge(subsetMiddle, countMiddleElementaryDF,
+                             left_on='HAKGUDO_NM', right_on='HAKGUDO_NM', how='left')
+# print(subsetMiddle.head())
+
+
+##################################################
+# count number of Elementary school districts in High school districts
+highHakgudo = subsetHigh['HAKGUDO_NM'].unique()
+
+dictHighElementaryHakgudoCounts = dict()
+for Hakgudo in highHakgudo:
+    # get subset of middle school hakgudo one by one
+    tempDF = subsetHigh[subsetHigh['HAKGUDO_NM'] == Hakgudo]
+    # intersect tempDF with subsetElementary to find polygons over tempDF
+    tempIntersection = gpd.overlay(tempDF, subsetElementary, how='intersection')
+    # get intersected polygons' area
+    tempIntersection['areaIntersected'] = tempIntersection.geometry.area
+    # get intersected polygons' area share
+    merged_result = pd.merge(tempIntersection, subsetElementary[['HAKGUDO_NM']],
+                             left_on='HAKGUDO_NM_2', right_on='HAKGUDO_NM', how='left')
+    # print(merged_result.columns)
+    merged_result['intersectedAreaShare'] = merged_result['areaIntersected'] / merged_result['ElementaryDistrictArea'] * 100
+    # Filter rows where intersectedAreaShare > 95
+    merged_result_filtered = merged_result[merged_result['intersectedAreaShare'] > 5]
+    dictHighElementaryHakgudoCounts[Hakgudo] = len(merged_result_filtered)
+
+# print(dictMiddleHakgudoCounts)
+countHighElementaryDF = pd.DataFrame(list(dictHighElementaryHakgudoCounts.items()), columns=['HAKGUDO_NM', 'ElementarySchoolDistrictsCount'])
+# print(countHighElementaryDF)
+
+# Calculate the sum of values
+# Display the sum: this could be different from the total number of elementary school districts because of shared school districts
+sum_values = countHighElementaryDF['ElementarySchoolDistrictsCount'].sum()
+print("Sum of values:", sum_values)
+print(len(subsetElementary))
+
+subsetHigh = pd.merge(subsetHigh, countHighElementaryDF,
+                             left_on='HAKGUDO_NM', right_on='HAKGUDO_NM', how='left')
+# print(subsetHigh.head())
+
+##################################################
+# count number of Middle school districts in High school districts
+highHakgudo = subsetHigh['HAKGUDO_NM'].unique()
+
+dictHighMiddleHakgudoCounts = dict()
+for Hakgudo in highHakgudo:
+    # get subset of middle school hakgudo one by one
+    tempDF = subsetHigh[subsetHigh['HAKGUDO_NM'] == Hakgudo]
+    # intersect tempDF with subsetElementary to find polygons over tempDF
+    tempIntersection = gpd.overlay(tempDF, subsetMiddle, how='intersection')
+    # get intersected polygons' area
+    tempIntersection['areaIntersected'] = tempIntersection.geometry.area
+    # get intersected polygons' area share
+    merged_result = pd.merge(tempIntersection, subsetMiddle[['HAKGUDO_NM']],
+                             left_on='HAKGUDO_NM_2', right_on='HAKGUDO_NM', how='left')
+    # print(merged_result.columns)
+    merged_result['intersectedAreaShare'] = merged_result['areaIntersected'] / merged_result['MiddleDistrictArea'] * 100
+    # Filter rows where intersectedAreaShare > 95
+    merged_result_filtered = merged_result[merged_result['intersectedAreaShare'] > 5]
+    dictHighMiddleHakgudoCounts[Hakgudo] = len(merged_result_filtered)
+
+# print(dictMiddleHakgudoCounts)
+countHighMiddleDF = pd.DataFrame(list(dictHighMiddleHakgudoCounts.items()), columns=['HAKGUDO_NM', 'MiddleSchoolDistrictsCount'])
+# print(countHighMiddleDF)
+
+# Calculate the sum of values
+# Display the sum: this could be different from the total number of elementary school districts because of shared school districts
+sum_values = countHighMiddleDF['MiddleSchoolDistrictsCount'].sum()
+print("Sum of values:", sum_values)
+print(len(subsetMiddle))
+
+subsetHigh = pd.merge(subsetHigh, countHighMiddleDF,
+                             left_on='HAKGUDO_NM', right_on='HAKGUDO_NM', how='left')
+# print(subsetMiddle)
+# print(subsetHigh)
+print(subsetMiddle[['HAKGUDO_NM', 'ElementarySchoolDistrictsCount']])
+print(subsetHigh[['HAKGUDO_NM','MiddleSchoolDistrictsCount','ElementarySchoolDistrictsCount']])
+
+
+#################################################
 # Create a new plot
 # base
 fig, ax = plt.subplots(figsize=(10, 10))
@@ -125,10 +288,30 @@ for handle, label in zip(handles, labels):
     handle.set_label(label)
 
 # Add legend
-plt.legend(handles=handles)
+# plt.legend(handles=handles)
 
 # Add any additional customization as needed (title, legend, etc.)
 ax.set_title('Middle and Elementary School Districts of Seoul')
+
+# Create a new column in the subsetMiddle dataframe to store the count
+subsetMiddle['num_polygons'] = 0
+
+# Iterate over each polygon in subsetMiddle
+for index, row in subsetMiddle.iterrows():
+    polygon = row['geometry']
+    count = 0
+
+    # Check if the polygon contains any polygons from subsetElementary
+    for _, elem_row in subsetElementary.iterrows():
+        elem_polygon = elem_row['geometry']
+        if polygon.contains(elem_polygon):
+            count += 1
+
+    # Update the 'num_polygons' column with the count
+    subsetMiddle.loc[index, 'num_polygons'] = count
+
+# Print only the 'HAKGUDO_NM' and 'num_polygons' columns
+print(subsetMiddle[['HAKGUDO_NM', 'num_polygons']])
 
 # Specify the file path for saving the figure
 file_path = os.path.join(base_path, 'schoolDistricts(MiddleElementarySchool.png')
