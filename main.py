@@ -151,6 +151,8 @@ subsetMiddle['MiddleDistrictArea'] = subsetMiddle.geometry.apply(lambda x: x.are
 middleHakgudo = subsetMiddle['HAKGUDO_NM'].unique()
 
 dictMiddleElementaryHakgudoCounts = dict()
+
+selectedDistricts = []
 for Hakgudo in middleHakgudo:
     # get subset of middle school hakgudo one by one
     tempDF = subsetMiddle[subsetMiddle['HAKGUDO_NM'] == Hakgudo]
@@ -166,6 +168,9 @@ for Hakgudo in middleHakgudo:
     merged_result_filtered = merged_result[merged_result['intersectedAreaShare'] > 5]
     dictMiddleElementaryHakgudoCounts[Hakgudo] = len(merged_result_filtered)
 
+    # # add higher level school district info(here, middle school district info to each elementary school district
+    selectedDistricts.append(merged_result_filtered[['HAKGUDO_NM_1', 'HAKGUDO_NM_2']])
+
 countMiddleElementaryDF = pd.DataFrame(list(dictMiddleElementaryHakgudoCounts.items()), columns=['HAKGUDO_NM', 'ElementarySchoolDistrictsCount'])
 # print(countMiddleElementaryDF)
 
@@ -179,12 +184,23 @@ subsetMiddle = pd.merge(subsetMiddle, countMiddleElementaryDF,
                              left_on='HAKGUDO_NM', right_on='HAKGUDO_NM', how='left')
 # print(subsetMiddle.head())
 
+districtsInHigherLevelDistricts = pd.concat(selectedDistricts, ignore_index=True)
+
+seoulElementarySchoolDistricts = pd.merge(subsetElementary, districtsInHigherLevelDistricts[['HAKGUDO_NM_1', 'HAKGUDO_NM_2']],
+                             left_on='HAKGUDO_NM', right_on='HAKGUDO_NM_2', how='left')
+
+seoulElementarySchoolDistricts = seoulElementarySchoolDistricts.drop('HAKGUDO_NM_2', axis=1)
+seoulElementarySchoolDistricts = seoulElementarySchoolDistricts.rename(columns={'HAKGUDO_NM_1': 'middleSchoolDistrict'})
+print(seoulElementarySchoolDistricts.head())
+
 
 ##################################################
 # count number of Elementary school districts in High school districts
 highHakgudo = subsetHigh['HAKGUDO_NM'].unique()
 
 dictHighElementaryHakgudoCounts = dict()
+
+selectedDistricts = []
 for Hakgudo in highHakgudo:
     # get subset of middle school hakgudo one by one
     tempDF = subsetHigh[subsetHigh['HAKGUDO_NM'] == Hakgudo]
@@ -201,7 +217,10 @@ for Hakgudo in highHakgudo:
     merged_result_filtered = merged_result[merged_result['intersectedAreaShare'] > 5]
     dictHighElementaryHakgudoCounts[Hakgudo] = len(merged_result_filtered)
 
-# print(dictMiddleHakgudoCounts)
+    # # add higher level school district info(here, high school district info to each elementary school district
+    selectedDistricts.append(merged_result_filtered[['HAKGUDO_NM_1', 'HAKGUDO_NM_2']])
+
+
 countHighElementaryDF = pd.DataFrame(list(dictHighElementaryHakgudoCounts.items()), columns=['HAKGUDO_NM', 'ElementarySchoolDistrictsCount'])
 # print(countHighElementaryDF)
 
@@ -215,11 +234,23 @@ subsetHigh = pd.merge(subsetHigh, countHighElementaryDF,
                              left_on='HAKGUDO_NM', right_on='HAKGUDO_NM', how='left')
 # print(subsetHigh.head())
 
+districtsInHigherLevelDistricts = pd.concat(selectedDistricts, ignore_index=True)
+
+seoulElementarySchoolDistricts = pd.merge(seoulElementarySchoolDistricts, districtsInHigherLevelDistricts[['HAKGUDO_NM_1', 'HAKGUDO_NM_2']],
+                             left_on='HAKGUDO_NM', right_on='HAKGUDO_NM_2', how='left')
+
+seoulElementarySchoolDistricts = seoulElementarySchoolDistricts.drop('HAKGUDO_NM_2', axis=1)
+seoulElementarySchoolDistricts = seoulElementarySchoolDistricts.rename(columns={'HAKGUDO_NM_1': 'highSchoolDistrict'})
+print(seoulElementarySchoolDistricts.head())
+
+
 ##################################################
 # count number of Middle school districts in High school districts
 highHakgudo = subsetHigh['HAKGUDO_NM'].unique()
 
 dictHighMiddleHakgudoCounts = dict()
+
+selectedDistricts = []
 for Hakgudo in highHakgudo:
     # get subset of middle school hakgudo one by one
     tempDF = subsetHigh[subsetHigh['HAKGUDO_NM'] == Hakgudo]
@@ -236,7 +267,9 @@ for Hakgudo in highHakgudo:
     merged_result_filtered = merged_result[merged_result['intersectedAreaShare'] > 5]
     dictHighMiddleHakgudoCounts[Hakgudo] = len(merged_result_filtered)
 
-# print(dictMiddleHakgudoCounts)
+    # # add higher level school district info(here, high school district info to each middle school district
+    selectedDistricts.append(merged_result_filtered[['HAKGUDO_NM_1', 'HAKGUDO_NM_2']])
+
 countHighMiddleDF = pd.DataFrame(list(dictHighMiddleHakgudoCounts.items()), columns=['HAKGUDO_NM', 'MiddleSchoolDistrictsCount'])
 # print(countHighMiddleDF)
 
@@ -248,10 +281,16 @@ print(len(subsetMiddle))
 
 subsetHigh = pd.merge(subsetHigh, countHighMiddleDF,
                              left_on='HAKGUDO_NM', right_on='HAKGUDO_NM', how='left')
-# print(subsetMiddle)
 # print(subsetHigh)
-print(subsetMiddle[['HAKGUDO_NM', 'ElementarySchoolDistrictsCount']])
-print(subsetHigh[['HAKGUDO_NM','MiddleSchoolDistrictsCount','ElementarySchoolDistrictsCount']])
+
+districtsInHigherLevelDistricts = pd.concat(selectedDistricts, ignore_index=True)
+
+seoulMiddleSchoolDistricts = pd.merge(subsetMiddle, districtsInHigherLevelDistricts[['HAKGUDO_NM_1', 'HAKGUDO_NM_2']],
+                             left_on='HAKGUDO_NM', right_on='HAKGUDO_NM_2', how='left')
+
+seoulMiddleSchoolDistricts = seoulMiddleSchoolDistricts.drop('HAKGUDO_NM_2', axis=1)
+seoulMiddleSchoolDistricts = seoulMiddleSchoolDistricts.rename(columns={'HAKGUDO_NM_1': 'highSchoolDistrict'})
+# print(seoulMiddleSchoolDistricts.head())
 
 
 #################################################
